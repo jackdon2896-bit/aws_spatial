@@ -2,6 +2,7 @@
 work/
 .nextflow/
 .nextflow.*
+nxf-tmp.*
 
 # Nextflow logs
 .nextflow.log*

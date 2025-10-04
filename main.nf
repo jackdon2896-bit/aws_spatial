@@ -14,6 +14,23 @@ include { SRA_DOWNLOAD } from './modules/local/sra_download.nf'
 include { FASTQ_TO_H5AD } from './modules/local/fastq_to_h5ad.nf'
 include { H5_TO_H5AD } from './modules/local/h5_to_h5ad.nf'
 
+process TILE_SPLIT {
+    publishDir "${params.outdir}/tiles", mode: 'copy', enabled: params.save_tiles
+    
+    input:
+    path tiff
+    
+    output:
+    path "tiles/*.tif", emit: tiles
+    path "tiles", emit: tiles_dir
+    
+    script:
+    """
+    mkdir -p tiles
+    python ${projectDir}/bin/split_tiles.py ${tiff} tiles ${params.tile_size}
+    """
+}
+
 process PREPROCESS_IMAGE {
     publishDir "${params.outdir}/preprocessed", mode: 'copy'
     
@@ -58,6 +75,22 @@ process AI_ROI_CROP {
     script:
     """
     python ${projectDir}/bin/ai_roi_crop.py ${filled} ${mask} roi.tif coords.csv
+    """
+}
+
+process MERGE_TILES {
+    publishDir "${params.outdir}/merged", mode: 'copy'
+    
+    input:
+    path tiles_dir
+    val output_name
+    
+    output:
+    path "${output_name}"
+    
+    script:
+    """
+    python ${projectDir}/bin/merge_tiles.py ${tiles_dir} ${output_name}
     """
 }
 
@@ -251,9 +284,60 @@ workflow {
     def combined_h5_ch = h5ad_only_ch.mix(converted_h5ad_ch, sra_h5_ch)
     
     // IMAGE PROCESSING BRANCH
-    def filled = PREPROCESS_IMAGE(tiff_ch)
-    def mask = CELLPOSE_SEGMENT(filled)
-    def roi = AI_ROI_CROP(filled, mask)
+    // Choose between tile-based or direct processing based on enable_tiling parameter
+    def roi
+    if (params.enable_tiling) {
+        // TILE-BASED PROCESSING (for large images)
+        // Step 1: Split large TIFF into tiles
+        def tile_split_result = TILE_SPLIT(tiff_ch)
+        def tiles = tile_split_result.tiles.flatten()
+        
+        // Step 2: Process each tile in parallel
+        def filled_tiles = PREPROCESS_IMAGE(tiles)
+        def mask_tiles = CELLPOSE_SEGMENT(filled_tiles)
+        
+        // Step 3: ROI extraction per tile
+        def roi_per_tile = AI_ROI_CROP(filled_tiles, mask_tiles)
+        
+        // Step 4: Collect tiles back into directories for merging
+        def filled_tiles_dir = filled_tiles.collect().map { files -> 
+            def dir = file("${params.outdir}/temp/filled_tiles")
+            dir.mkdirs()
+            files.each { f -> f.copyTo(dir.resolve(f.name)) }
+            dir
+        }
+        
+        def mask_tiles_dir = mask_tiles.collect().map { files -> 
+            def dir = file("${params.outdir}/temp/mask_tiles")
+            dir.mkdirs()
+            files.each { f -> f.copyTo(dir.resolve(f.name)) }
+            dir
+        }
+        
+        def roi_tiles_dir = roi_per_tile.roi_img.collect().map { files -> 
+            def dir = file("${params.outdir}/temp/roi_tiles")
+            dir.mkdirs()
+            files.each { f -> f.copyTo(dir.resolve(f.name)) }
+            dir
+        }
+        
+        // Step 5: Merge tiles back into full images
+        def merged_filled = MERGE_TILES(filled_tiles_dir, "filled_merged.tif")
+        def merged_mask = MERGE_TILES(mask_tiles_dir, "mask_merged.png")
+        def merged_roi = MERGE_TILES(roi_tiles_dir, "roi_merged.tif")
+        
+        // Collect coords from all tiles (needs concatenation)
+        def all_coords = roi_per_tile.coords.collectFile(name: 'all_coords.csv', keepHeader: true, skip: 1)
+        
+        // Create roi channel structure matching original
+        roi = [roi_img: merged_roi, coords: all_coords]
+        
+    } else {
+        // DIRECT PROCESSING (for smaller images or when tiling is disabled)
+        def filled = PREPROCESS_IMAGE(tiff_ch)
+        def mask = CELLPOSE_SEGMENT(filled)
+        roi = AI_ROI_CROP(filled, mask)
+    }
     
     // scRNA-SEQ BRANCH
     def qc = SCRNA_QC(combined_h5_ch)

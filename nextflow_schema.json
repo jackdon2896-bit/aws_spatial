@@ -61,6 +61,26 @@
                     "type": "boolean",
                     "description": "Normalize expression data",
                     "default": true
+                },
+                "enable_tiling": {
+                    "type": "boolean",
+                    "description": "Enable tile-based processing for large images (prevents memory crashes)",
+                    "default": true,
+                    "fa_icon": "fas fa-th"
+                },
+                "tile_size": {
+                    "type": "integer",
+                    "description": "Size of each tile in pixels (use 1024, 2048, or 4096)",
+                    "default": 2048,
+                    "minimum": 512,
+                    "maximum": 8192,
+                    "fa_icon": "fas fa-ruler"
+                },
+                "save_tiles": {
+                    "type": "boolean",
+                    "description": "Save intermediate tile outputs (increases storage usage)",
+                    "default": false,
+                    "fa_icon": "fas fa-save"
                 }
             }
         },
