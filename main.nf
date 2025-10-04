@@ -1,27 +1,54 @@
+#!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-params.tiff = ""
-params.h5 = ""
-params.outdir = ""
+/*
+========================================================================================
+    AWS Spatial Transcriptomics Pipeline - FIXED VERSION
+========================================================================================
+    Spatial transcriptomics analysis with H5 or SRA data support
+    GitHub: https://github.com/jackdon2896-bit/aws_spatial
+----------------------------------------------------------------------------------------
+*/
 
-process {
-    container = '644685128986.dkr.ecr.us-east-1.amazonaws.com/seqera/container-spatial:latest'
+// Import modules
+include { SRA_DOWNLOAD } from './modules/local/sra_download.nf'
+include { FASTQ_TO_H5AD } from './modules/local/fastq_to_h5ad.nf'
+include { H5_TO_H5AD } from './modules/local/h5_to_h5ad.nf'
+
+// Parameters with defaults
+params.tiff = null
+params.h5 = null
+params.sra_ids = null
+params.outdir = "results"
+
+// Parameter validation
+if (!params.tiff) {
+    error "ERROR: --tiff parameter is required (TIFF image file)"
 }
 
-/**********************************
- IMAGE PROCESSING (SAFE)
-**********************************/
-process PREPROCESS_IMAGE {
-    publishDir "${params.outdir}/preprocessed", mode: 'copy'
+if (!params.h5 && !params.sra_ids) {
+    error "ERROR: Either --h5 or --sra_ids parameter is required"
+}
 
-    cpus 4
-    memory '16 GB'
+if (!params.outdir) {
+    error "ERROR: --outdir parameter is required"
+}
+
+/*
+========================================================================================
+    IMAGE PROCESSING PROCESSES
+========================================================================================
+*/
+
+process PREPROCESS_IMAGE {
+    tag "${tiff.name}"
+    publishDir "${params.outdir}/preprocessed", mode: 'copy'
 
     input:
     path tiff
 
     output:
-    path "filled.tif"
+    path "filled.tif", emit: filled
 
     script:
     """
@@ -29,17 +56,15 @@ process PREPROCESS_IMAGE {
     """
 }
 
-/**********************************
- SEGMENTATION
-**********************************/
 process CELLPOSE_SEGMENT {
+    tag "cellpose"
     publishDir "${params.outdir}/segmentation", mode: 'copy'
 
     input:
     path filled
 
     output:
-    path "mask.png"
+    path "mask.png", emit: mask
 
     script:
     """
@@ -47,10 +72,8 @@ process CELLPOSE_SEGMENT {
     """
 }
 
-/**********************************
- ROI
-**********************************/
 process AI_ROI_CROP {
+    tag "roi_crop"
     publishDir "${params.outdir}/roi", mode: 'copy'
 
     input:
@@ -67,70 +90,37 @@ process AI_ROI_CROP {
     """
 }
 
-/**********************************
- H5 → H5AD
-**********************************/
-process H5_TO_H5AD {
-    publishDir "${params.outdir}/converted", mode: 'copy'
+/*
+========================================================================================
+    scRNA-SEQ ANALYSIS PROCESSES
+========================================================================================
+*/
 
-    input:
-    path h5_file
-
-    output:
-    path "converted_${h5_file.baseName}.h5ad", emit: h5ad
-
-    script:
-    """
-    python - <<EOF
-import scanpy as sc
-import sys
-
-try:
-    print("Reading:", "${h5_file}")
-    adata = sc.read_10x_h5("${h5_file}")
-
-    adata.var_names_make_unique()
-    adata.obs_names_make_unique()
-
-    adata.obs['sample'] = "${h5_file.baseName}"
-
-    adata.write("converted_${h5_file.baseName}.h5ad")
-
-    print("Done:", adata.shape)
-
-except Exception as e:
-    print("ERROR:", str(e))
-    sys.exit(1)
-EOF
-    """
-}
-
-/**********************************
- scRNA PIPELINE
-**********************************/
 process SCRNA_QC {
+    tag "qc"
     publishDir "${params.outdir}/qc", mode: 'copy'
 
     input:
     path h5ad
 
     output:
-    path "qc.h5ad"
+    path "qc.h5ad", emit: qc
 
     script:
     """
-    python ${projectDir}/bin/qc.py ${h5ad}
+    python ${projectDir}/bin/qc.py ${h5ad} qc.h5ad
     """
 }
 
 process SCRNA_MAD_FILTER {
+    tag "mad_filter"
     publishDir "${params.outdir}/filtered", mode: 'copy'
 
     input:
     path qc
 
     output:
-    path "filtered.h5ad"
+    path "filtered.h5ad", emit: filtered
 
     script:
     """
@@ -139,13 +129,14 @@ process SCRNA_MAD_FILTER {
 }
 
 process SCRNA_DIM_REDUCTION {
+    tag "dimred"
     publishDir "${params.outdir}/dimred", mode: 'copy'
 
     input:
     path filtered
 
     output:
-    path "reduced.h5ad"
+    path "reduced.h5ad", emit: reduced
 
     script:
     """
@@ -154,13 +145,14 @@ process SCRNA_DIM_REDUCTION {
 }
 
 process SCRNA_CLUSTER {
-    publishDir "${params.outdir}/clusters", mode: 'copy'
+    tag "cluster"
+    publishDir "${params.outdir}/clustered", mode: 'copy'
 
     input:
     path reduced
 
     output:
-    path "clustered.h5ad"
+    path "clustered.h5ad", emit: clustered
 
     script:
     """
@@ -169,13 +161,14 @@ process SCRNA_CLUSTER {
 }
 
 process SCRNA_ANNOTATE {
+    tag "annotate"
     publishDir "${params.outdir}/annotated", mode: 'copy'
 
     input:
     path clustered
 
     output:
-    path "annotated.h5ad"
+    path "annotated.h5ad", emit: annotated
 
     script:
     """
@@ -183,26 +176,31 @@ process SCRNA_ANNOTATE {
     """
 }
 
-/**********************************
- SPATIAL
-**********************************/
+/*
+========================================================================================
+    SPATIAL ANALYSIS PROCESSES
+========================================================================================
+*/
+
 process SPATIAL_REFINE {
+    tag "spatial_refine"
     publishDir "${params.outdir}/refined", mode: 'copy'
 
     input:
-    path annot
+    path annotated
     path coords
 
     output:
-    path "refined.h5ad"
+    path "refined.h5ad", emit: refined
 
     script:
     """
-    python ${projectDir}/bin/spatial_refine.py ${annot} refined.h5ad
+    python ${projectDir}/bin/spatial_refine.py ${annotated} refined.h5ad
     """
 }
 
 process SPATIAL_INTEGRATION {
+    tag "spatial_integration"
     publishDir "${params.outdir}/integrated", mode: 'copy'
 
     input:
@@ -210,7 +208,7 @@ process SPATIAL_INTEGRATION {
     path refined
 
     output:
-    path "integrated.h5ad"
+    path "integrated.h5ad", emit: integrated
 
     script:
     """
@@ -218,17 +216,21 @@ process SPATIAL_INTEGRATION {
     """
 }
 
-/**********************************
- OUTPUTS
-**********************************/
+/*
+========================================================================================
+    OUTPUT PROCESSES
+========================================================================================
+*/
+
 process SCRNA_PLOTS {
-    publishDir "${params.outdir}/plots", mode: 'copy'
+    tag "scrna_plots"
+    publishDir "${params.outdir}/scrna_plots", mode: 'copy'
 
     input:
     path refined
 
     output:
-    path "*.png"
+    path "*.png", emit: plots
 
     script:
     """
@@ -237,13 +239,14 @@ process SCRNA_PLOTS {
 }
 
 process SPATIAL_PLOTS {
+    tag "spatial_plots"
     publishDir "${params.outdir}/spatial_plots", mode: 'copy'
 
     input:
     path integrated
 
     output:
-    path "*.png"
+    path "*.png", emit: plots
 
     script:
     """
@@ -252,50 +255,108 @@ process SPATIAL_PLOTS {
 }
 
 process REPORT {
+    tag "report"
     publishDir "${params.outdir}/report", mode: 'copy'
 
     input:
     path integrated
 
     output:
-    path "report.md"
+    path "report.md", emit: report
 
     script:
     """
-    python ${projectDir}/bin/report.py
+    python ${projectDir}/bin/report.py ${integrated} report.md
     """
 }
 
-/**********************************
- WORKFLOW
-**********************************/
+/*
+========================================================================================
+    MAIN WORKFLOW
+========================================================================================
+*/
+
 workflow {
+    
+    // Create image channel
+    tiff_ch = Channel.fromPath(params.tiff, checkIfExists: true)
+    
+    // Process image
+    filled_ch = PREPROCESS_IMAGE(tiff_ch)
+    mask_ch = CELLPOSE_SEGMENT(filled_ch)
+    roi_result = AI_ROI_CROP(filled_ch, mask_ch)
+    
+    // Create H5AD channel based on input type
+    if (params.sra_ids) {
+        // SRA workflow
+        sra_ids_ch = Channel.from(params.sra_ids.tokenize(','))
+        sra_downloads = SRA_DOWNLOAD(sra_ids_ch)
+        
+        // Group FASTQ files by SRA ID and convert to H5AD
+        sra_downloads.fastq
+            .map { fastq -> 
+                def sra_id = fastq.name.replaceAll('_.*', '')
+                tuple(sra_id, fastq)
+            }
+            .groupTuple()
+            .map { sra_id, fastq_files ->
+                def meta = [id: sra_id]
+                tuple(meta, fastq_files)
+            }
+            .set { fastq_grouped }
+        
+        h5ad_ch = FASTQ_TO_H5AD(fastq_grouped)
+        
+    } else if (params.h5) {
+        // H5 workflow
+        h5_ch = Channel.fromPath(params.h5, checkIfExists: true)
+        h5ad_ch = H5_TO_H5AD(h5_ch)
+    }
+    
+    // scRNA-seq analysis pipeline
+    qc_ch = SCRNA_QC(h5ad_ch)
+    filtered_ch = SCRNA_MAD_FILTER(qc_ch)
+    reduced_ch = SCRNA_DIM_REDUCTION(filtered_ch)
+    clustered_ch = SCRNA_CLUSTER(reduced_ch)
+    annotated_ch = SCRNA_ANNOTATE(clustered_ch)
+    
+    // Spatial analysis
+    refined_ch = SPATIAL_REFINE(annotated_ch, roi_result.coords)
+    integrated_ch = SPATIAL_INTEGRATION(roi_result.roi_img, refined_ch)
+    
+    // Generate outputs
+    SCRNA_PLOTS(refined_ch)
+    SPATIAL_PLOTS(integrated_ch)
+    REPORT(integrated_ch)
+}
 
-    // SAFE S3 INPUT
-    def tiff_ch = Channel.fromPath(params.tiff, checkIfExists: true)
-    def h5_ch   = Channel.fromPath(params.h5, checkIfExists: true)
+/*
+========================================================================================
+    COMPLETION MESSAGE
+========================================================================================
+*/
 
-    // convert H5 → H5AD
-    def h5ad = H5_TO_H5AD(h5_ch).h5ad
+workflow.onComplete {
+    log.info """
+    ========================================================================================
+    Pipeline execution completed!
+    ========================================================================================
+    Status      : ${workflow.success ? 'SUCCESS' : 'FAILED'}
+    Start time  : ${workflow.start}
+    End time    : ${workflow.complete}
+    Duration    : ${workflow.duration}
+    Results     : ${params.outdir}
+    ========================================================================================
+    """.stripIndent()
+}
 
-    // IMAGE
-    def filled = PREPROCESS_IMAGE(tiff_ch)
-    def mask   = CELLPOSE_SEGMENT(filled)
-    def roi    = AI_ROI_CROP(filled, mask)
-
-    // RNA
-    def qc        = SCRNA_QC(h5ad)
-    def filtered  = SCRNA_MAD_FILTER(qc)
-    def reduced   = SCRNA_DIM_REDUCTION(filtered)
-    def cluster   = SCRNA_CLUSTER(reduced)
-    def annot     = SCRNA_ANNOTATE(cluster)
-
-    // SPATIAL
-    def refined    = SPATIAL_REFINE(annot, roi.coords)
-    def integrated = SPATIAL_INTEGRATION(roi.roi_img, refined)
-
-    // OUTPUT
-    SCRNA_PLOTS(refined)
-    SPATIAL_PLOTS(integrated)
-    REPORT(integrated)
+workflow.onError {
+    log.error """
+    ========================================================================================
+    Pipeline execution failed!
+    ========================================================================================
+    Error message: ${workflow.errorMessage}
+    Error report : ${workflow.errorReport}
+    ========================================================================================
+    """.stripIndent()
 }
