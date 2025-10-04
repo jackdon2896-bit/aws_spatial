@@ -1,0 +1,46 @@
+# Nextflow work directory
+work/
+.nextflow/
+.nextflow.*
+
+# Nextflow logs
+.nextflow.log*
+*.log
+
+# Results and outputs
+results/
+outputs/
+
+# Test data (if large)
+data/
+test_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# R
+.Rhistory
+.RData
+.Rproj.user
+
+# Mac
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+tmp/
+temp/
