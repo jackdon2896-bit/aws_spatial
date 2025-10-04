@@ -1,0 +1,56 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::your-data-bucket/*",
+        "arn:aws:s3:::your-data-bucket",
+        "arn:aws:s3:::your-results-bucket/*",
+        "arn:aws:s3:::your-results-bucket",
+        "arn:aws:s3:::your-workflow-bucket/*",
+        "arn:aws:s3:::your-workflow-bucket"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:*:*:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "batch:DescribeJobs",
+        "batch:DescribeJobQueues",
+        "batch:DescribeComputeEnvironments",
+        "batch:ListJobs",
+        "batch:SubmitJob",
+        "batch:CancelJob",
+        "batch:TerminateJob"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "aws-spatial-transcriptomics",
+  "description": "Spatial transcriptomics analysis pipeline with SRA download capability for AWS HealthOmics",
+  "engine": "NEXTFLOW",
+  "definitionUri": "s3://your-workflow-bucket/aws-spatial-pipeline/main.nf",
+  "definitionZip": "s3://your-workflow-bucket/aws-spatial-pipeline/workflow.zip",
+  "parameterTemplate": {
+    "tiff": {
+      "description": "Path to TIFF image file for spatial analysis",
+      "optional": false
+    },
+    "h5": {
+      "description": "Path to H5 feature matrix file (optional if using SRA)",
+      "optional": true
+    },
+    "sra_ids": {
+      "description": "Comma-separated list of SRA accession IDs for download",
+      "optional": true
+    },
+    "outdir": {
+      "description": "S3 output directory for results",
+      "optional": false
+    }
+  },
+  "storageCapacity": 1200,
+  "accelerators": "GPU"
+}

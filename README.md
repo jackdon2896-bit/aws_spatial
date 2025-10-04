@@ -83,3 +83,34 @@ nextflow run main.nf \
   --sra_ids "SRR15440796,SRR15440797" \
   --outdir s3://your-bucket/results/
 ```
+
+## AWS HealthOmics Integration
+
+This pipeline is fully compatible with AWS HealthOmics! See [HEALTHOMICS_SETUP.md](HEALTHOMICS_SETUP.md) for detailed setup instructions.
+
+### Quick HealthOmics Setup
+
+1. **Upload Container to ECR:**
+   ```bash
+   ./ecr-setup.sh
+   ```
+
+2. **Create HealthOmics Workflow:**
+   ```bash
+   cd healthomics
+   ./create-workflow.sh
+   ```
+
+3. **Start a Run:**
+   ```bash
+   export WORKFLOW_ID="your-workflow-id"
+   ./start-run.sh sra  # or ./start-run.sh h5
+   ```
+
+### HealthOmics Features
+
+✅ **ECR Container Support**: Automated container building and deployment  
+✅ **Workflow Templates**: Pre-configured parameter templates  
+✅ **Run Management**: Scripts for creating and monitoring runs  
+✅ **IAM Integration**: Proper role and permission setup  
+✅ **Cost Optimization**: Resource limits and spot instance support

@@ -1,0 +1,19 @@
+{
+  "workflowId": "WORKFLOW_ID_PLACEHOLDER",
+  "roleArn": "arn:aws:iam::ACCOUNT_ID:role/HealthOmicsWorkflowRole",
+  "name": "spatial-analysis-sra-run",
+  "runGroupId": "RUN_GROUP_ID_PLACEHOLDER",
+  "priority": 5,
+  "parameters": {
+    "tiff": "s3://your-data-bucket/spatial/images/sample.tif",
+    "sra_ids": "SRR15440796,SRR15440797",
+    "outdir": "s3://your-results-bucket/spatial-analysis-results/"
+  },
+  "outputUri": "s3://your-results-bucket/spatial-analysis-results/",
+  "logLevel": "ALL",
+  "tags": {
+    "Project": "SpatialTranscriptomics",
+    "Pipeline": "AWS-Spatial",
+    "DataSource": "SRA"
+  }
+}
