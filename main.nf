@@ -1,5 +1,9 @@
 nextflow.enable.dsl=2
 
+// Include local modules
+include { SRA_DOWNLOAD } from './modules/local/sra_download.nf'
+include { FASTQ_TO_H5AD } from './modules/local/fastq_to_h5ad.nf'
+
 process PREPROCESS_IMAGE {
     publishDir "${params.outdir}/preprocessed", mode: 'copy'
 
@@ -202,8 +206,28 @@ process REPORT {
 }
 
 workflow {
+    // Input channels
     def tiff_ch = channel.fromPath(params.tiff)
-    def h5_ch   = channel.fromPath(params.h5)
+    
+    // Handle H5 input - can be direct file or from SRA conversion
+    def h5_ch = params.h5 ? channel.fromPath(params.h5) : channel.empty()
+    
+    // SRA processing branch (optional)
+    def sra_h5_ch = channel.empty()
+    if (params.sra_ids) {
+        def sra_ids_ch = channel.fromList(params.sra_ids.split(',').collect { it.trim() })
+        def sra_fastq = SRA_DOWNLOAD(sra_ids_ch)
+        
+        // Convert FASTQ to H5AD format
+        def sra_meta_ch = sra_fastq.fastq.map { fastq_files -> 
+            def sra_id = fastq_files[0].name.split('_')[0]
+            [['id': sra_id], fastq_files]
+        }
+        sra_h5_ch = FASTQ_TO_H5AD(sra_meta_ch).h5ad
+    }
+    
+    // Combine H5 sources (direct input or SRA-derived)
+    def combined_h5_ch = h5_ch.mix(sra_h5_ch)
 
     // IMAGE PROCESSING BRANCH
     def filled = PREPROCESS_IMAGE(tiff_ch)
@@ -211,7 +235,7 @@ workflow {
     def roi    = AI_ROI_CROP(filled, mask)
 
     // scRNA-SEQ BRANCH
-    def qc       = SCRNA_QC(h5_ch)
+    def qc       = SCRNA_QC(combined_h5_ch)
     def filtered = SCRNA_MAD_FILTER(qc)
     def reduced  = SCRNA_DIM_REDUCTION(filtered)
     def cluster  = SCRNA_CLUSTER(reduced)
