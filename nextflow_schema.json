@@ -1,0 +1,98 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "https://raw.githubusercontent.com/jackdon2896-bit/aws_spatial/main/nextflow_schema.json",
+    "version": "1.0.0",
+    "title": "AWS Spatial Transcriptomics Pipeline",
+    "description": "Spatial transcriptomics analysis pipeline with SRA download capability",
+    "type": "object",
+    "definitions": {
+        "input_output_options": {
+            "title": "Input/output options",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Define where the pipeline should find input data and save output data.",
+            "properties": {
+                "tiff": {
+                    "type": "string",
+                    "description": "Path to TIFF image file for spatial analysis",
+                    "fa_icon": "fas fa-file-image",
+                    "format": "file-path"
+                },
+                "h5": {
+                    "type": "string",
+                    "description": "Path to H5 feature matrix file (optional if using SRA)",
+                    "fa_icon": "fas fa-file",
+                    "format": "file-path"
+                },
+                "sra_ids": {
+                    "type": "string",
+                    "description": "Comma-separated list of SRA accession IDs for download",
+                    "fa_icon": "fas fa-download",
+                    "pattern": "^[A-Z]{3}[0-9]+([,][A-Z]{3}[0-9]+)*$"
+                },
+                "outdir": {
+                    "type": "string",
+                    "description": "S3 output directory for results",
+                    "default": "s3://your-bucket/results/",
+                    "fa_icon": "fas fa-folder-open",
+                    "format": "directory-path"
+                }
+            },
+            "required": ["outdir"]
+        },
+        "analysis_options": {
+            "title": "Analysis options",
+            "type": "object",
+            "fa_icon": "fas fa-cogs",
+            "description": "Options for spatial transcriptomics analysis",
+            "properties": {
+                "resolution": {
+                    "type": "string",
+                    "description": "Resolution for spatial analysis",
+                    "default": "high",
+                    "enum": ["low", "medium", "high"]
+                },
+                "filter_genes": {
+                    "type": "boolean",
+                    "description": "Filter low-expression genes",
+                    "default": true
+                },
+                "normalize": {
+                    "type": "boolean",
+                    "description": "Normalize expression data",
+                    "default": true
+                }
+            }
+        },
+        "aws_options": {
+            "title": "AWS options",
+            "type": "object",
+            "fa_icon": "fab fa-aws",
+            "description": "AWS-specific configuration options",
+            "properties": {
+                "aws_region": {
+                    "type": "string",
+                    "description": "AWS region for S3 and other services",
+                    "default": "us-east-1"
+                },
+                "instance_type": {
+                    "type": "string",
+                    "description": "EC2 instance type for compute",
+                    "default": "m5.large",
+                    "enum": ["m5.large", "m5.xlarge", "m5.2xlarge", "c5.large", "c5.xlarge"]
+                }
+            }
+        }
+    },
+    "allOf": [
+        {
+            "$ref": "#/definitions/input_output_options"
+        },
+        {
+            "$ref": "#/definitions/analysis_options"
+        },
+        {
+            "$ref": "#/definitions/aws_options"
+        }
+    ]
+}
