@@ -1,5 +1,10 @@
 nextflow.enable.dsl=2
 
+params.tiff = ""
+params.h5 = ""
+params.sra_ids = ""
+params.outdir = ""
+
 // Include local modules
 include { SRA_DOWNLOAD } from './modules/local/sra_download.nf'
 include { FASTQ_TO_H5AD } from './modules/local/fastq_to_h5ad.nf'
