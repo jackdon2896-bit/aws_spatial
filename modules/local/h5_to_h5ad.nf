@@ -20,16 +20,20 @@ try:
     # Read 10x H5 file
     adata = sc.read_10x_h5("${h5_file}")
     
-    # Make variable names unique (important for 10x data)
-    adata.var_names_unique()
+    # ✅ FIX: make gene names unique
+    adata.var_names_make_unique()
     
-    # Add basic metadata
+    # Add metadata
     adata.obs['sample'] = '${h5_file.baseName}'
     
-    # Write as H5AD
-    adata.write("converted_${h5_file.baseName}.h5ad")
+    # Optional: ensure obs names are unique too (safe)
+    adata.obs_names_make_unique()
     
-    print(f"Successfully converted ${h5_file} to H5AD format")
+    # Write as H5AD
+    output_file = "converted_${h5_file.baseName}.h5ad"
+    adata.write(output_file)
+    
+    print(f"Successfully converted ${h5_file} to {output_file}")
     print(f"Shape: {adata.shape}")
     
 except Exception as e:
