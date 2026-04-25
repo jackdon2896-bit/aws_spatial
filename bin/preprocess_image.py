@@ -1,35 +1,32 @@
 import sys
-import numpy as np
 import tifffile as tiff
+import numpy as np
 import cv2
 
 input_path = sys.argv[1]
 output_path = sys.argv[2]
 
-print("Reading large TIFF using memory-mapped mode...")
+print("Reading large TIFF safely...")
 
-# ✅ IMPORTANT: use memmap (does NOT load full image into RAM)
 with tiff.TiffFile(input_path) as tif:
-    img = tif.asarray(out='memmap')
+    image = tif.asarray(out='memmap')  # memory safe
 
-# Normalize safely
-if img.dtype != np.uint8:
-    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
-    img = img.astype(np.uint8)
+# Normalize
+image = image.astype(np.float32)
+image = (image - image.min()) / (image.max() - image.min())
+image = (image * 255).astype(np.uint8)
 
-# Convert to grayscale if needed
-if len(img.shape) == 3:
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# Grayscale
+if len(image.shape) == 3:
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-# Create mask
-mask = (img < 10).astype(np.uint8)
+# Mask
+mask = (image < 10).astype(np.uint8)
 
-# Inpainting
-filled = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
+# Inpaint
+filled = cv2.inpaint(image, mask, 3, cv2.INPAINT_TELEA)
 
-print("Writing output TIFF...")
-
-# Save using tifffile (handles large files better)
+# Save
 tiff.imwrite(output_path, filled)
 
 print("Saved:", output_path)
