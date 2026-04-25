@@ -11,33 +11,29 @@ process H5_TO_H5AD {
     """
     python - <<EOF
 import scanpy as sc
-import anndata as ad
 import sys
 
 try:
     print("Reading 10x H5 file: ${h5_file}")
     
-    # Read 10x H5 file
     adata = sc.read_10x_h5("${h5_file}")
     
-    # ✅ FIX: make gene names unique
+    # Fix duplicate genes
     adata.var_names_make_unique()
     
-    # Add metadata
-    adata.obs['sample'] = '${h5_file.baseName}'
-    
-    # Optional: ensure obs names are unique too (safe)
+    # Fix duplicate cells (safe)
     adata.obs_names_make_unique()
     
-    # Write as H5AD
+    adata.obs['sample'] = '${h5_file.baseName}'
+    
     output_file = "converted_${h5_file.baseName}.h5ad"
     adata.write(output_file)
     
-    print(f"Successfully converted ${h5_file} to {output_file}")
-    print(f"Shape: {adata.shape}")
-    
+    print("SUCCESS:", output_file)
+    print("Shape:", adata.shape)
+
 except Exception as e:
-    print(f"Error converting ${h5_file}: {str(e)}")
+    print("ERROR:", str(e))
     sys.exit(1)
 EOF
     """
