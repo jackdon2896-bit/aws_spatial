@@ -5,6 +5,10 @@ params.h5 = ""
 params.sra_ids = ""
 params.outdir = ""
 
+process {
+    container = '644685128986.dkr.ecr.us-east-1.amazonaws.com/seqera/container-spatial:latest'
+}
+
 // Include local modules
 include { SRA_DOWNLOAD } from './modules/local/sra_download.nf'
 include { FASTQ_TO_H5AD } from './modules/local/fastq_to_h5ad.nf'
