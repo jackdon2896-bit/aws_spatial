@@ -6,23 +6,25 @@ import cv2
 input_path = sys.argv[1]
 output_path = sys.argv[2]
 
-# Read large TIFF safely
+print("Reading large TIFF safely...")
 img = tiff.imread(input_path)
 
-# Convert to uint8 if needed (OpenCV requirement)
+# Normalize if needed
 if img.dtype != np.uint8:
     img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
     img = img.astype(np.uint8)
 
-# If image is multi-channel, convert to grayscale
+# Convert to grayscale if needed
 if len(img.shape) == 3:
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-# Create mask (same logic as your original)
+# Create mask
 mask = (img < 10).astype(np.uint8)
 
-# Apply inpainting
+# Inpainting
 filled = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
 
-# Save using tifffile (handles large output)
+# Save safely
 tiff.imwrite(output_path, filled)
+
+print("Saved:", output_path)
